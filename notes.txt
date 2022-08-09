@@ -1,0 +1,5 @@
+rotation zamenjal z delta_rotation
+- pri navadnem rotationu mi je Blender avtomatsko zamenjal npr Rotation(60,90,30) -> (-30,0,60) -- objekt 
+	ostane enak, vendar uniči vse nadaljne izračune pozicij
+===> rešitev je bila uporaba delta_rotation-a, ki so uporabljeni PO navadnih rotationih, in se s tem znebil
+	avtomatskemu Blenderjevemu popravljanju

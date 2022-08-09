@@ -1,5 +1,3 @@
-import cProfile
-
 import math
 import sys
 import numpy
@@ -290,8 +288,7 @@ def resetScene():
 
 
 def create_mesh(vertices, edges, faces):
-    mesh = bpy.data.meshes.new('tree')
-    # print("create_mesh\n  vertices {}\n  edges {}\n  faces {}".format(vertices, edges, faces))
+    mesh = bpy.data.meshes.new('Drevo')
     mesh.from_pydata(vertices, edges, faces)
     mesh.validate()
     mesh.update()
@@ -302,17 +299,17 @@ def create_mesh(vertices, edges, faces):
 # not in the ellipsoid
 #   numberOfBuds: number of attraction_points generated in the ellipsis
 #   r: radius of the cube
-#   rz: vertical radius of the cube
+#   h: vertical radius of the cube
 #   p: center point of the cube
 
 
-def ellipsoid(number_of_attraction_points, r, rz):
+def ellipsoid(number_of_attraction_points, r, h):
     attraction_points = []
     r2 = r*r
-    z2 = rz*rz
-    p = Vector((0, 0, rz))
-    if rz > r:
-        r = rz
+    z2 = h*h
+    p = Vector((0, 0, h))
+    if h > r:
+        r = h
     while True:
         x = (random.random()*2-1)*r
         y = (random.random()*2-1)*r
@@ -336,50 +333,36 @@ def colorMesh(mesh):
     mesh.materials.append(mymat)
 
 
-def findClosest(curr, buds):
-    closest = None
-    closestIndex = None
-    closestDistance = 9999
-
-    for i in range(len(buds)):
-        distance = getDistance(curr.pos, buds[i].pos)
-        if(distance < closestDistance):
-            closest = buds[i]
-            closestIndex = i
-            closestDistance = distance
-
-    del buds[closestIndex]
-    return closest
-
-
-def vector2Array(vector):
-    return [pos for pos in vector]
-
-
-def create_vertices(trans_mat, rotation_mat, diameter, is_end, display=False):
-    v = []
+# bud_position je položaj popka, ki bo središče tvorjenega n-kotnika
+# rotation_mat je rotacijska matrika, ki predstavlja rotacijo n-kotnika
+# diameter je širina n-kotnika
+# z is_end označimo, če sestavjamo n-kotnik za končni internodij
+def create_vertices(bud_position, rotation_mat, diameter, is_end):
+    vertices = []
     radius = diameter / 2
     if is_end:
-        # Če je to končni internodij, zapremo cilinder
-        return [trans_mat @ rotation_mat @ Vector((0, 0, 0))] * NUM_VERTICES
+        # Če je to končni internodij, ga zapremo
+        return [bud_position @ rotation_mat @ Vector((0, 0, 0))] * NUM_VERTICES
 
     angle = 0.0
+    # Število oglišč n-kotnika predstavlja konstanta NUM_VERTICES
     inc = 2*math.pi/NUM_VERTICES
     for i in range(0, NUM_VERTICES):
         vertex = Vector(
             (radius * math.cos(angle), radius * math.sin(angle), 0))
-        vertex = trans_mat @ rotation_mat @ vertex
-        v.append(vertex)
+        vertex = bud_position @ rotation_mat @ vertex
         if display:
             bpy.ops.mesh.primitive_uv_sphere_add(radius=0.1, location=vertex)
+        
+        vertices.append(vertex)
         angle += inc
 
-    return v
+    return vertices
 
 
-def connect(quads, last_indices, new_indices):
+def connect(faces, last_indices, new_indices):
     for i in range(0, NUM_VERTICES):
-        quads.append([last_indices[i], last_indices[i - 1],
+        faces.append([last_indices[i], last_indices[i - 1],
                       new_indices[i - 1], new_indices[i]])
 
 
@@ -428,7 +411,7 @@ def prepare_internode_candidate(current_internode, attraction_points_in_range, i
     if is_lateral_internode == False:
         if len(attraction_points_in_cone) > 0 and len(current_internode.children) == 0:
             # Če je set atrakcijskih točk v spoznavni prostornini popka prazen,
-            # popek več nima prostora za rast (Q=0)
+            # popek več nima prostora za rast (q=0)
             current_internode.space_for_growth = True
         else:
             return []
@@ -516,7 +499,7 @@ class Internode:
         self.optimal_growth_direction = None
         self.lateral_internode_optimal_growth_direction = None
         self.space_for_growth = False
-        self.Q = 0
+        self.q = 0
         self.v = 0
         self.n = 0
         self.l = 1
@@ -591,21 +574,8 @@ def generateTree(
 
     # Using space colonization algorithm
     # Buds are the generated attraction points
-    attraction_points = []
-    # attraction_points = [
-    #     Bud(Vector((0, 0, 10))),
-    #     Bud(Vector((-10, 0, 20))),
-    #     Bud(Vector((-20, 0, 15))),
-    #     Bud(Vector((0, -15, 50))),
-    #     Bud(Vector((0, 25, 25))),
-    #     Bud(Vector((0, 5, 30))),
-    #     # Bud(Vector((15, 0, 10))),
-    #     Bud(Vector((0, 35, 20))),
-    # #     Bud(Vector((10, 0, 35))),
-    # #     Bud(Vector((-20, 0, 30))),
-    # ]
     attraction_points = ellipsoid(NUMBER_OF_ATTRACTION_POINTS, r=ATTRACTION_POINTS_WIDTH,
-                                  rz=ATTRACTION_POINTS_HEIGHT)
+                                  h=ATTRACTION_POINTS_HEIGHT)
 
     for attraction_point in attraction_points:
         # bpy.ops.mesh.primitive_uv_sphere_add(radius=0.5, location=attraction_point.pos)
@@ -726,7 +696,7 @@ def generateTree(
                     break
 
                 if len(internode_growth_candidates) == 0 and internodes == [rootInternode]:
-                    print("Error: Root internode can not grow")
+                    print("Error: Koreninski internodij ne more rast")
                     return
 
         stack = []
@@ -757,7 +727,7 @@ def generateTree(
         # CALCULATION OF BUD FATE #
         ###########################
         # We store the terminal buds, so we perform the algorithm for Extended BH model
-        # quicker - in the first pass, information about the amount of light Q that
+        # quicker - in the first pass, information about the amount of light q that
         # reaches the buds flows basipetally (from terminal buds to the root)
         # and the cumulative values are stored within the internodes (internodes)
 
@@ -765,11 +735,11 @@ def generateTree(
 
         for internode in internode_order_dict:
             if len(internode.children) == 0 and (internode.space_for_growth or internode == rootInternode):
-                internode.Q = 1
+                internode.q = 1
                 if len(internodes) > 1 and internode == rootInternode:
-                    internode.Q = 0
+                    internode.q = 0
             else:
-                internode.Q = 0
+                internode.q = 0
             # Pripravimo se za drugi prehod, tako da resetiramo vrednosti indernodija
             internode.v = 0
             internode.n = 0
@@ -779,12 +749,12 @@ def generateTree(
             if len(internode.children) == 0:
                 pass
             elif len(internode.children) == 1:
-                internode.Q += internode.children[0].Q
+                internode.q += internode.children[0].q
             else:
                 for child in internode.children:
-                    internode.Q += child.Q
+                    internode.q += child.q
 
-            # print(f"{internode.bud2.pos}: Q={internode.Q}")
+            # print(f"{internode.bud2.pos}: q={internode.q}")
         # print('************')
 
         # for internode in internodes:
@@ -792,8 +762,8 @@ def generateTree(
 
         ### SECOND PASS ###
 
-        v_base = ALPHA * rootInternode.Q
-        rootInternode.v = v_base
+        v_0 = ALPHA * rootInternode.q
+        rootInternode.v = v_0
         rootInternode.n = math.floor(rootInternode.v)
 
         for internode in reversed(internode_order_dict):
@@ -803,16 +773,16 @@ def generateTree(
                     internode.children) > 1 else None
 
                 # Otrok z indeksom 0 je nadaljevanje glavne osi
-                Q_m = main_axis.Q
-                Q_l = lateral_internode.Q if lateral_internode != None else 0
+                q_m = main_axis.q
+                q_l = lateral_internode.q if lateral_internode != None else 0
 
-                if Q_m == 0 and Q_l == 0:
+                if q_m == 0 and q_l == 0:
                     continue
 
-                v_m = internode.v * (LAMBDA_COEFFICIENT * Q_m) / \
-                    (LAMBDA_COEFFICIENT * Q_m + (1 - LAMBDA_COEFFICIENT) * Q_l)
-                v_l = internode.v * ((1 - LAMBDA_COEFFICIENT) * Q_l) / \
-                    (LAMBDA_COEFFICIENT * Q_m + (1 - LAMBDA_COEFFICIENT) * Q_l)
+                v_m = internode.v * (LAMBDA_COEFFICIENT * q_m) / \
+                    (LAMBDA_COEFFICIENT * q_m + (1 - LAMBDA_COEFFICIENT) * q_l)
+                v_l = internode.v * ((1 - LAMBDA_COEFFICIENT) * q_l) / \
+                    (LAMBDA_COEFFICIENT * q_m + (1 - LAMBDA_COEFFICIENT) * q_l)
 
                 main_axis.v = v_m
                 main_axis.n = math.floor(main_axis.v)
@@ -829,29 +799,9 @@ def generateTree(
                     else:
                         lateral_internode.l = lateral_internode.v / lateral_internode.n
 
-            # print(f"{internode.bud2.pos[0]}: Q={internode.Q} v={internode.v} n={internode.n} l={internode.l} children={[internode.pos[0] for internode in internode.children]}")
+            # print(f"{internode.bud2.pos[0]}: q={internode.q} v={internode.v} n={internode.n} l={internode.l} children={[internode.pos[0] for internode in internode.children]}")
 
         # print('------------')
-
-    # # TEST
-    # internode1 = Internode(rootInternode.bud2, Bud(Vector((2, 0, 4))), rootInternode)
-    # internode3 = Internode(internode1.bud2, Bud(Vector((3, 0, 5))), internode1)
-    # internode9 = Internode(internode3.bud2, Bud(Vector((5, 0, 6))), internode3)
-    # internode8 = Internode(internode9.bud2, Bud(Vector((7, 0, 7))), internode9)
-    # # # internode4 = Internode(internode1.bud2, Bud(Vector((-4, 5, 9))), internode1)
-    # # # internode5 = Internode(internode4.bud2, Bud(Vector((-4, 7, 12))), internode4)
-
-    # rootInternode.children.append(internode1)
-    # internode1.children.append(internode3)
-    # internode3.children.append(internode9)
-    # internode9.children.append(internode8)
-    # # # internode4.children.append(internode5)
-    # # # internode7.children.append(internode8)
-
-    # internodees.append(internode1)
-    # internodees.append(internode3)
-    # internodees.append(internode9)
-    # internodees.append(internode8)
 
     ##################################
     # CALCULATION OF BRANCH DIAMETER #
