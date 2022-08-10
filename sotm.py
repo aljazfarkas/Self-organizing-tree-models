@@ -351,8 +351,6 @@ def create_vertices(bud_position, rotation_mat, diameter, is_end):
         vertex = Vector(
             (radius * math.cos(angle), radius * math.sin(angle), 0))
         vertex = bud_position @ rotation_mat @ vertex
-        if display:
-            bpy.ops.mesh.primitive_uv_sphere_add(radius=0.1, location=vertex)
         
         vertices.append(vertex)
         angle += inc
