@@ -303,18 +303,18 @@ def create_mesh(vertices, edges, faces):
 #   p: center point of the cube
 
 
-def ellipsoid(number_of_attraction_points, r, h):
+def ellipsoid(number_of_attraction_points, w, h):
     attraction_points = []
-    r2 = r*r
+    w2 = w*w
     z2 = h*h
     p = Vector((0, 0, h))
-    if h > r:
-        r = h
+    if h > w:
+        w = h
     while True:
-        x = (random.random()*2-1)*r
-        y = (random.random()*2-1)*r
-        z = (random.random()*2-1)*r
-        if x*x/r2+y*y/r2+z*z/z2 <= 1:
+        x = (random.random()*2-1)*w
+        y = (random.random()*2-1)*w
+        z = (random.random()*2-1)*w
+        if x*x/w2+y*y/w2+z*z/z2 <= 1:
             pos = p + Vector((x, y, z))
             attraction_points.append(AttractionPoint(pos))
         if (len(attraction_points) >= number_of_attraction_points):
@@ -498,7 +498,7 @@ class Internode:
         self.lateral_internode_optimal_growth_direction = None
         self.space_for_growth = False
         self.q = 0
-        self.v = 0
+        self.s = 0
         self.n = 0
         self.l = 1
         self.d = 0
@@ -572,7 +572,7 @@ def generateTree(
 
     # Using space colonization algorithm
     # Buds are the generated attraction points
-    attraction_points = ellipsoid(NUMBER_OF_ATTRACTION_POINTS, r=ATTRACTION_POINTS_WIDTH,
+    attraction_points = ellipsoid(NUMBER_OF_ATTRACTION_POINTS, w=ATTRACTION_POINTS_WIDTH,
                                   h=ATTRACTION_POINTS_HEIGHT)
 
     for attraction_point in attraction_points:
@@ -739,7 +739,7 @@ def generateTree(
             else:
                 internode.q = 0
             # Pripravimo se za drugi prehod, tako da resetiramo vrednosti indernodija
-            internode.v = 0
+            internode.s = 0
             internode.n = 0
             internode.l = 1
 
@@ -760,9 +760,9 @@ def generateTree(
 
         ### SECOND PASS ###
 
-        v_0 = ALPHA * rootInternode.q
-        rootInternode.v = v_0
-        rootInternode.n = math.floor(rootInternode.v)
+        s_0 = ALPHA * rootInternode.q
+        rootInternode.s = s_0
+        rootInternode.n = math.floor(rootInternode.s)
 
         for internode in reversed(internode_order_dict):
             if len(internode.children) > 0:
@@ -777,27 +777,27 @@ def generateTree(
                 if q_m == 0 and q_l == 0:
                     continue
 
-                v_m = internode.v * (LAMBDA_COEFFICIENT * q_m) / \
+                s_m = internode.s * (LAMBDA_COEFFICIENT * q_m) / \
                     (LAMBDA_COEFFICIENT * q_m + (1 - LAMBDA_COEFFICIENT) * q_l)
-                v_l = internode.v * ((1 - LAMBDA_COEFFICIENT) * q_l) / \
+                s_l = internode.s * ((1 - LAMBDA_COEFFICIENT) * q_l) / \
                     (LAMBDA_COEFFICIENT * q_m + (1 - LAMBDA_COEFFICIENT) * q_l)
 
-                main_axis.v = v_m
-                main_axis.n = math.floor(main_axis.v)
+                main_axis.s = s_m
+                main_axis.n = math.floor(main_axis.s)
                 if main_axis.n == 0:
                     main_axis.l = 1
                 else:
-                    main_axis.l = main_axis.v / main_axis.n
+                    main_axis.l = main_axis.s / main_axis.n
 
                 if lateral_internode != None:
-                    lateral_internode.v = v_l
-                    lateral_internode.n = math.floor(lateral_internode.v)
+                    lateral_internode.s = s_l
+                    lateral_internode.n = math.floor(lateral_internode.s)
                     if lateral_internode.n == 0:
                         lateral_internode.l = 1
                     else:
-                        lateral_internode.l = lateral_internode.v / lateral_internode.n
+                        lateral_internode.l = lateral_internode.s / lateral_internode.n
 
-            # print(f"{internode.bud2.pos[0]}: q={internode.q} v={internode.v} n={internode.n} l={internode.l} children={[internode.pos[0] for internode in internode.children]}")
+            # print(f"{internode.bud2.pos[0]}: q={internode.q} v={internode.s} n={internode.n} l={internode.l} children={[internode.pos[0] for internode in internode.children]}")
 
         # print('------------')
 
@@ -937,8 +937,8 @@ def generateTree(
     print("Number of internodes generated: ", len(all_internode_pos))
     print(f"generation time: {timedelta(seconds=timer()-start_generation_time)}")
 
-    snapshot = tracemalloc.take_snapshot()
-    display_top(snapshot)
+    # snapshot = tracemalloc.take_snapshot()
+    # display_top(snapshot)
     print("*************\nEND\n*************")
     os.system('say "your program has finished"')
 
